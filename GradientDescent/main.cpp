@@ -1,5 +1,6 @@
 #include <iostream>
 #include <math.h>
+#include <string.h>
 
 #ifndef DEBUG
 #define DEBUG false
@@ -13,14 +14,16 @@ public:
     double* w;
     double alpha;
     double tolerance;
+    bool isMin;
     int nLimits;
     double** limits;
 
-    GradientDescent(int nDim, double* w, double alpha, double tolerance) {
+    GradientDescent(int nDim, double* w, double alpha, double tolerance, bool isMin) {
         this->nDim = nDim;
         this->w = w;
         this->alpha = alpha;
         this->tolerance = tolerance;
+        this->isMin = isMin;
     }
 
     GradientDescent(int nDim, double* w) {
@@ -28,11 +31,12 @@ public:
         this->w = w;
         this->alpha = 0.1;
         this->tolerance = 0.01;
+        this->isMin = true;
     }
 
     ~GradientDescent() {
-        delete this->w;
-        delete this->limits;
+        delete[] this->w;
+        delete[] this->limits;
     }
 
     void printPoint(double* point, int nDim) {
@@ -61,12 +65,12 @@ public:
             double result = 0;
             for (int j = 0; j < this->nDim; ++j) {
                 if (j < this->nDim - 1) {
-                    result += this->limits[i][j] * x[j]; // xi case except y (x2)
+                    result += this->limits[i][j] * floor(x[j] * 10000000.0) / 10000000.0; // xi case except y (x2)
                 } else {
                     result += this->limits[i][j]; // independent case
                 }
             }
-            if (result <= 0) {
+            if (result < 0) {
                 return false;
             }
         }
@@ -84,9 +88,8 @@ public:
         double* temp = new double[this->nDim];
         double factor = 0;
         if (line1[0] == 0 && line2[0] == 0) {
-            cout << "DEBUG: 0s" << endl;
-            delete temp;
-            delete intersectionPoint;
+            delete[] temp;
+            delete[] intersectionPoint;
             intersectionPoint = nullptr;
             if (line1[1] == 0 && line2[1] == 0) { // all = 0
                 cout << "ERROR: Invalid lines in getIntersectionPoint function" << endl;
@@ -98,19 +101,29 @@ public:
             // parallel lines
             return false;
         }
-        factor = -(line1[0] / line2[0]);
-        for (int i = 0; i < this->nDim; ++i) {
-            temp[i] = (factor * line2[i]) + line1[i];
+        if (line1[0] == 0) {
+            for (int i = 0; i < this->nDim; ++i) {
+                temp[i] = line1[i];
+            }
+        } else if (line2[0] == 0) {
+            for (int i = 0; i < this->nDim; ++i) {
+                temp[i] = line2[i];
+            }
+        } else {
+            factor = -(line1[0] / line2[0]);
+            for (int i = 0; i < this->nDim; ++i) {
+                temp[i] = (factor * line2[i]) + line1[i];
+            }
         }
         if (temp[1] != 0 && temp[1] != INFINITY) {
             intersectionPoint[1] = -temp[2] / temp[1];
             intersectionPoint[0] = -(line1[1] * intersectionPoint[1] + line1[2]) / line1[0];
-            delete temp;
+            delete[] temp;
             return true;
         } else {
             bool isIntersect = temp[2] == 0 || isnan(temp[2]);
-            delete temp;
-            delete intersectionPoint;
+            delete[] temp;
+            delete[] intersectionPoint;
             intersectionPoint = nullptr;
             return isIntersect;
         }
@@ -155,11 +168,23 @@ public:
         double* firstIntersectionPoint = nullptr;
         double* secondIntersectionPoint = nullptr;
         bool extremumPointFound = false;
+        bool isPrevPointExtremum = false;
+
+        if (this->isMin) {
+            for (i = 0; i < nDim - 1; ++i) {
+                gradient[i] = -gradient[i];
+            }
+        }
 
         for (i = 0; i < nDim - 1; ++i) {
             point[i] = 0;
             prevPoint[i] = 0;
         }
+#if (DEBUG)
+        cout << "Starting point: ";
+        printPoint(point, this->nDim - 1);
+#endif
+
         while (step <= maxSteps && !extremumPointFound) {
 #if (DEBUG)
             cout << "---------" << endl;
@@ -192,11 +217,17 @@ public:
                     isIntersect = getIntersectionPoint(perpendicular, this->limits[i], intersectionPoint);
                     if (isIntersect) {
                         if (intersectionPoint == nullptr) {
-                            cout << "The extremum points are on the N" << i << " border." << endl;
+                            cout << this->limits[i][0] << this->limits[i][1] << this->limits[i][2] << endl;
+                            cout << "The extremum points are on the N" << i + 1 << " border." << endl;
                             extremumPointFound = true;
+                            isPrevPointExtremum = true;
                             break;
                         }
-                        if (firstIntersectionPoint == nullptr) {
+                        if (!isInLimits(intersectionPoint)) {
+                            isIntersect = false;
+                            delete[] intersectionPoint;
+                            intersectionPoint = nullptr;
+                        } else if (firstIntersectionPoint == nullptr) {
                             firstIntersectionPoint = intersectionPoint;
                         } else {
                             secondIntersectionPoint = intersectionPoint;
@@ -206,23 +237,23 @@ public:
                     }
                 }
                 if (firstIntersectionPoint != nullptr) {
-                    delete firstIntersectionPoint;
-                    firstIntersectionPoint = nullptr;
-                    if (secondIntersectionPoint != nullptr) {
-                        delete secondIntersectionPoint;
+                    if (secondIntersectionPoint != nullptr && distance(firstIntersectionPoint, secondIntersectionPoint, this->nDim - 1) > this->tolerance) {
+                        delete[] secondIntersectionPoint;
                         secondIntersectionPoint = nullptr;
                     } else { // Only 1 intersection point was found
                         extremumPointFound = true;
+                        isPrevPointExtremum = true;
+                        delete[] firstIntersectionPoint;
+                        firstIntersectionPoint = nullptr;
                         break;
                     }
+                    delete[] firstIntersectionPoint;
+                    firstIntersectionPoint = nullptr;
                 } else {
-#if (DEBUG)
-                    cout << "No intersection was found. Setting the previous point and decreasing the alpha." << endl;
-#endif
-                    for (i = 0; i < nDim - 1; ++i) {
-                        point[i] = prevPoint[i];
-                    }
-                    this->alpha /= 2;
+                    cout << "No intersection was found. It means that the previous point was out of limits too." << endl;
+                    extremumPointFound = true;
+                    isPrevPointExtremum = true;
+                    break;
                 }
 
                 if (distance(point, prevPoint, this->nDim - 1) < this->tolerance) {
@@ -234,9 +265,14 @@ public:
             }
             step++;
         }
+        if (isPrevPointExtremum) {
+            for (i = 0; i < nDim - 1; ++i) {
+                point[i] = prevPoint[i];
+            }
+        }
         cout << "Steps: " << step - 1 << " (Max steps: " << maxSteps << ")" << endl;
-        delete prevPoint;
-        delete gradient;
+        delete[] prevPoint;
+        delete[] gradient;
         return point;
     }
 };
@@ -248,6 +284,8 @@ int main() {
     double** limits;
     double alpha;
     double tolerance;
+    char isMinStr[3];
+    bool isMin;
     int maxSteps;
     int i = 0;
     int j = 0;
@@ -282,6 +320,9 @@ int main() {
         limits[i];
     }
 
+    cout << "Enter min or max: ";
+    cin >> isMinStr;
+    isMin = strcmp(isMinStr, "max") == 0 ? false : true;
     cout << "Enter the alpha: ";
     cin >> alpha;
     cout << "Enter the tolerance: ";
@@ -289,13 +330,14 @@ int main() {
     cout << "Enter the maximum of steps count: ";
     cin >> maxSteps;
 
-    GradientDescent* gradientDescent = new GradientDescent(nDim, w, alpha, tolerance);
+    GradientDescent* gradientDescent = new GradientDescent(nDim, w, alpha, tolerance, isMin);
     gradientDescent->setBorders(nLimits, limits);
     cout << "Running..." << endl;
     point = gradientDescent->run(maxSteps);
     cout << "Extremum point: ";
     gradientDescent->printPoint(point, nDim - 1);
 
+    delete[] point;
     delete[] gradientDescent;
     cout << "End" << endl;
     return 0;
