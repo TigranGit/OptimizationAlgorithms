@@ -1,6 +1,8 @@
 ## Build
 - Run `make` to build the program.
 
+- Run `make DEBUG=true` to build the program with debug flag (prints every step)
+
 - Run `make clean` to remove the built program.
 
 

@@ -1,7 +1,9 @@
 #include <iostream>
 #include <math.h>
 
+#ifndef DEBUG
 #define DEBUG false
+#endif
 
 using namespace std;
 
@@ -232,6 +234,7 @@ public:
             }
             step++;
         }
+        cout << "Steps: " << step - 1 << " (Max steps: " << maxSteps << ")" << endl;
         delete prevPoint;
         delete gradient;
         return point;

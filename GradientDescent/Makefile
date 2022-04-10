@@ -1,10 +1,12 @@
+DEBUG?=false
+
 all: main.exe
 
-main.exe: main.o
-	g++ main.o -o main.exe
+main.exe: ${DEBUG}-main.o
+	g++ ${DEBUG}-main.o -o main.exe
 
-main.o: main.cpp
-	g++ -c main.cpp
+${DEBUG}-main.o: main.cpp
+	g++ -c -D"DEBUG=${DEBUG}" main.cpp -o ${DEBUG}-main.o
 
 clean:
-	rm main.o main.exe
+	rm *-main.o main.exe
