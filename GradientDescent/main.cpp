@@ -296,7 +296,7 @@ int main() {
     w = new double[nDim];
     for (i = 0; i < nDim; ++i) {
         if (i < nDim - 1) {
-            cout << "w[" << j << "] = ";
+            cout << "w[" << i << "] = ";
         } else {
             cout << "b = ";
         }
